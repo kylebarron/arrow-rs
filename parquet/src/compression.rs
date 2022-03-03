@@ -245,32 +245,33 @@ mod lz4_codec {
             input_buf: &[u8],
             output_buf: &mut Vec<u8>,
         ) -> Result<usize> {
-            let mut decoder = lz4::Decoder::new(input_buf)?;
-            let mut buffer: [u8; LZ4_BUFFER_SIZE] = [0; LZ4_BUFFER_SIZE];
-            let mut total_len = 0;
-            loop {
-                let len = decoder.read(&mut buffer)?;
-                if len == 0 {
-                    break;
-                }
-                total_len += len;
-                output_buf.write_all(&buffer[0..len])?;
-            }
-            Ok(total_len)
+            let mut decoder = lz4_flex::frame::FrameDecoder::new(input_buf);
+            std::io::copy(&mut decoder, &mut output_buf)?;
+            Ok(output_buf.len())
         }
 
+        // use lz4_flex::block::compress_prepend_size;
+        // use lz4_flex::block::decompress_size_prepended;
+
         fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
-            let mut encoder = lz4::EncoderBuilder::new().build(output_buf)?;
-            let mut from = 0;
-            loop {
-                let to = std::cmp::min(from + LZ4_BUFFER_SIZE, input_buf.len());
-                encoder.write_all(&input_buf[from..to])?;
-                from += LZ4_BUFFER_SIZE;
-                if from >= input_buf.len() {
-                    break;
-                }
-            }
-            encoder.finish().1.map_err(|e| e.into())
+            let mut encoder = lz4_flex::frame::FrameEncoder::new(output_buf);
+            std::io::copy(&mut input_buf, &mut encoder)?;
+            Ok(encoder.finish())
+
+            // let buf = lz4_flex::block::compress_prepend_size(input_buf);
+            // output_buf
+
+            // let mut encoder = lz4::EncoderBuilder::new().build(output_buf)?;
+            // let mut from = 0;
+            // loop {
+            //     let to = std::cmp::min(from + LZ4_BUFFER_SIZE, input_buf.len());
+            //     encoder.write_all(&input_buf[from..to])?;
+            //     from += LZ4_BUFFER_SIZE;
+            //     if from >= input_buf.len() {
+            //         break;
+            //     }
+            // }
+            // encoder.finish().1.map_err(|e| e.into())
         }
     }
 }

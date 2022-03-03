@@ -36,7 +36,8 @@ thrift = "0.13"
 snap = { version = "1.0", optional = true }
 brotli = { version = "3.3", optional = true }
 flate2 = { version = "1.0", optional = true }
-lz4 = { version = "1.23", optional = true }
+# lz4 = { version = "1.23", optional = true }
+lz4_flex = { version = "0.9.2", optional = true, default-features = false, features = ["checked-decode"] }
 zstd = { version = "0.10", optional = true }
 chrono = { version = "0.4", default-features = false }
 num = "0.4"
@@ -61,7 +62,7 @@ serde_json = { version = "1.0", features = ["preserve_order"] }
 arrow = { path = "../arrow", version = "9.1.0", default-features = false, features = ["test_utils", "prettyprint"] }
 
 [features]
-default = ["arrow", "snap", "brotli", "flate2", "lz4", "zstd", "base64"]
+default = ["arrow", "snap", "brotli", "flate2", "lz4_flex", "zstd", "base64"]
 cli = ["serde_json", "base64", "clap"]
 test_common = []
 # Experimental, unstable functionality primarily used for testing
