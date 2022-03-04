@@ -36,7 +36,7 @@ thrift = "0.13"
 snap = { version = "1.0", optional = true }
 brotli = { version = "3.3", optional = true }
 flate2 = { version = "1.0", optional = true }
-lz4_flex = { version = "0.9.2", optional = true, default-features = false }
+lz4_flex = { version = "0.9.2", optional = true }
 zstd = { version = "0.10", optional = true }
 chrono = { version = "0.4", default-features = false }
 num = "0.4"
