@@ -245,11 +245,12 @@ mod lz4_codec {
             input_buf: &[u8],
             output_buf: &mut Vec<u8>,
         ) -> Result<usize> {
-            let mut decoder = lz4::Decoder::new(input_buf)?;
+            let mut decoder = lz4_flex::frame::FrameDecoder::new(input_buf);
             let mut buffer: [u8; LZ4_BUFFER_SIZE] = [0; LZ4_BUFFER_SIZE];
             let mut total_len = 0;
             loop {
-                let len = decoder.read(&mut buffer)?;
+                let len = decoder.read(&mut buffer).unwrap();
+                // let len = decoder.read_exact(&mut buffer)?;
                 if len == 0 {
                     break;
                 }
@@ -260,7 +261,7 @@ mod lz4_codec {
         }
 
         fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
-            let mut encoder = lz4::EncoderBuilder::new().build(output_buf)?;
+            let mut encoder = lz4_flex::frame::FrameEncoder::new(output_buf);
             let mut from = 0;
             loop {
                 let to = std::cmp::min(from + LZ4_BUFFER_SIZE, input_buf.len());
@@ -270,7 +271,8 @@ mod lz4_codec {
                     break;
                 }
             }
-            encoder.finish().1.map_err(|e| e.into())
+            encoder.finish().unwrap();
+            Ok(())
         }
     }
 }
