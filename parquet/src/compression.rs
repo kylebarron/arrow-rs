@@ -72,7 +72,7 @@ pub fn create_codec(codec: CodecType) -> Result<Option<Box<dyn Codec>>> {
         CodecType::GZIP => Ok(Some(Box::new(GZipCodec::new()))),
         #[cfg(any(feature = "snap", test))]
         CodecType::SNAPPY => Ok(Some(Box::new(SnappyCodec::new()))),
-        #[cfg(any(feature = "lz4_flex", test))]
+        #[cfg(any(feature = "lz4", test))]
         CodecType::LZ4 => Ok(Some(Box::new(LZ4Codec::new()))),
         #[cfg(any(feature = "zstd", test))]
         CodecType::ZSTD => Ok(Some(Box::new(ZSTDCodec::new()))),
@@ -220,7 +220,7 @@ mod brotli_codec {
 #[cfg(any(feature = "brotli", test))]
 pub use brotli_codec::*;
 
-#[cfg(any(feature = "lz4_flex", test))]
+#[cfg(any(feature = "lz4", test))]
 mod lz4_codec {
     use std::io::{Read, Write};
 
@@ -276,7 +276,7 @@ mod lz4_codec {
         }
     }
 }
-#[cfg(any(feature = "lz4_flex", test))]
+#[cfg(any(feature = "lz4", test))]
 pub use lz4_codec::*;
 
 #[cfg(any(feature = "zstd", test))]
