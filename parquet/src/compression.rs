@@ -222,8 +222,6 @@ pub use brotli_codec::*;
 
 #[cfg(any(feature = "lz4_flex", test))]
 mod lz4_codec {
-    use std::io::{Read, Write};
-
     use crate::compression::Codec;
     use crate::errors::Result;
 
@@ -245,8 +243,8 @@ mod lz4_codec {
             input_buf: &[u8],
             output_buf: &mut Vec<u8>,
         ) -> Result<usize> {
-            let mut decoder = lz4_flex::frame::FrameDecoder::new(input_buf);
-            std::io::copy(&mut decoder, &mut output_buf)?;
+            let output = lz4_flex::block::decompress_size_prepended(input_buf).unwrap();
+            output_buf.extend_from_slice(output.as_slice());
             Ok(output_buf.len())
         }
 
@@ -254,10 +252,9 @@ mod lz4_codec {
         // use lz4_flex::block::decompress_size_prepended;
 
         fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
-            let mut encoder = lz4_flex::frame::FrameEncoder::new(output_buf);
-            std::io::copy(&mut input_buf, &mut encoder)?;
-            Ok(encoder.finish())
-
+            let output = lz4_flex::block::compress_prepend_size(input_buf);
+            output_buf.extend_from_slice(output.as_slice());
+            Ok(())
             // let buf = lz4_flex::block::compress_prepend_size(input_buf);
             // output_buf
 
