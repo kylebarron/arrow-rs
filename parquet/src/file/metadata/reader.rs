@@ -423,11 +423,7 @@ impl ParquetMetaDataReader {
     /// See [`Self::with_prefetch_hint`] for a discussion of how to reduce the number of fetches
     /// performed by this function.
     #[cfg(all(feature = "async", feature = "arrow"))]
-    pub async fn try_load<F: MetadataFetch>(
-        &mut self,
-        mut fetch: F,
-        file_size: u64,
-    ) -> Result<()> {
+    pub async fn try_load<F: MetadataFetch>(&mut self, mut fetch: F, file_size: u64) -> Result<()> {
         let (metadata, remainder) = self.load_metadata(&mut fetch, file_size).await?;
 
         self.metadata = Some(metadata);

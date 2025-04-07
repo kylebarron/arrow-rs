@@ -318,9 +318,9 @@ impl Sbbf {
 
         let buffer = match column_metadata.bloom_filter_length() {
             Some(length) => {
-                let length: u64 =  length.try_into()?;
+                let length: u64 = length.try_into()?;
                 reader.get_bytes(offset, length)
-            },
+            }
             None => reader.get_bytes(offset, SBBF_HEADER_SIZE_ESTIMATE),
         }?;
 

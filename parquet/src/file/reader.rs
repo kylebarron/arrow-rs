@@ -19,10 +19,6 @@
 //! readers to read individual column chunks, or access record
 //! iterator.
 
-use bytes::{Buf, Bytes};
-use std::fs::File;
-use std::io::{BufReader, Seek, SeekFrom};
-use std::{io::Read, sync::Arc};
 use crate::bloom_filter::Sbbf;
 use crate::column::page::PageIterator;
 use crate::column::{page::PageReader, reader::ColumnReader};
@@ -31,6 +27,10 @@ use crate::file::metadata::*;
 pub use crate::file::serialized_reader::{SerializedFileReader, SerializedPageReader};
 use crate::record::reader::RowIter;
 use crate::schema::types::Type as SchemaType;
+use bytes::{Buf, Bytes};
+use std::fs::File;
+use std::io::{BufReader, Seek, SeekFrom};
+use std::{io::Read, sync::Arc};
 
 use crate::basic::Type;
 
