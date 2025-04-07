@@ -46,12 +46,12 @@ pub enum ParquetError {
     ArrowError(String),
     /// Error when the requested column index is more than the
     /// number of columns in the row group
-    IndexOutOfBound(usize, usize),
+    IndexOutOfBound(u64, u64),
     /// An external error variant
     External(Box<dyn Error + Send + Sync>),
-    /// Returned when a function needs more data to complete properly. The `usize` field indicates
+    /// Returned when a function needs more data to complete properly. The `u64` field indicates
     /// the total number of bytes required, not the number of additional bytes.
-    NeedMoreData(usize),
+    NeedMoreData(u64),
 }
 
 impl std::fmt::Display for ParquetError {

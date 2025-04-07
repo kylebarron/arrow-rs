@@ -83,7 +83,7 @@ pub trait MetadataSuffixFetch: MetadataFetch {
     ///
     /// Note the returned type is a boxed future, often created by
     /// [FutureExt::boxed]. See the trait documentation for an example
-    fn fetch_suffix(&mut self, suffix: usize) -> BoxFuture<'_, Result<Bytes>>;
+    fn fetch_suffix(&mut self, suffix: u64) -> BoxFuture<'_, Result<Bytes>>;
 }
 
 /// An asynchronous interface to load [`ParquetMetaData`] from an async source
@@ -93,7 +93,7 @@ pub struct MetadataLoader<F> {
     /// The in-progress metadata
     metadata: ParquetMetaData,
     /// The offset and bytes of remaining unparsed data
-    remainder: Option<(usize, Bytes)>,
+    remainder: Option<(u64, Bytes)>,
 }
 
 impl<F: MetadataFetch> MetadataLoader<F> {
@@ -125,7 +125,7 @@ impl<F: MetadataFetch> MetadataLoader<F> {
         footer.copy_from_slice(&suffix[suffix_len - FOOTER_SIZE..suffix_len]);
 
         let footer = ParquetMetaDataReader::decode_footer_tail(&footer)?;
-        let length = footer.metadata_length();
+        let length = footer.metadata_length() as usize;
 
         if file_size < length + FOOTER_SIZE {
             return Err(ParquetError::EOF(format!(
@@ -146,6 +146,7 @@ impl<F: MetadataFetch> MetadataLoader<F> {
             let metadata_start = file_size - length - FOOTER_SIZE - footer_start;
 
             let slice = &suffix[metadata_start..suffix_len - FOOTER_SIZE];
+            let footer_start: u64 = footer_start.try_into()?;
             (
                 ParquetMetaDataReader::decode_metadata(slice)?,
                 Some((footer_start, suffix.slice(..metadata_start))),
@@ -294,6 +295,8 @@ where
     F: FnMut(Range<usize>) -> Fut + Send,
     Fut: Future<Output = Result<Bytes>> + Send,
 {
+    let prefetch = prefetch.map(|v| v as u64);
+    let file_size = file_size as u64;
     let fetch = MetadataFetchFn(fetch);
     ParquetMetaDataReader::new()
         .with_prefetch_hint(prefetch)

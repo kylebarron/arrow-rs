@@ -19,11 +19,6 @@
 //! readers to read individual column chunks, or access record
 //! iterator.
 
-use bytes::{Buf, Bytes};
-use std::fs::File;
-use std::io::{BufReader, Seek, SeekFrom};
-use std::{io::Read, sync::Arc};
-
 use crate::bloom_filter::Sbbf;
 use crate::column::page::PageIterator;
 use crate::column::{page::PageReader, reader::ColumnReader};
@@ -32,6 +27,10 @@ use crate::file::metadata::*;
 pub use crate::file::serialized_reader::{SerializedFileReader, SerializedPageReader};
 use crate::record::reader::RowIter;
 use crate::schema::types::Type as SchemaType;
+use bytes::{Buf, Bytes};
+use std::fs::File;
+use std::io::{BufReader, Seek, SeekFrom};
+use std::{io::Read, sync::Arc};
 
 use crate::basic::Type;
 
@@ -77,7 +76,7 @@ pub trait ChunkReader: Length + Send + Sync {
     ///
     /// Similarly to [`Self::get_read`], this method may have side-effects on
     /// previously returned readers.
-    fn get_bytes(&self, start: u64, length: usize) -> Result<Bytes>;
+    fn get_bytes(&self, start: u64, length: u64) -> Result<Bytes>;
 }
 
 impl Length for File {
@@ -95,11 +94,13 @@ impl ChunkReader for File {
         Ok(BufReader::new(self.try_clone()?))
     }
 
-    fn get_bytes(&self, start: u64, length: usize) -> Result<Bytes> {
-        let mut buffer = Vec::with_capacity(length);
+    fn get_bytes(&self, start: u64, length: u64) -> Result<Bytes> {
+        let cap: usize = length.try_into()?;
+        let mut buffer = Vec::with_capacity(cap);
         let mut reader = self.try_clone()?;
         reader.seek(SeekFrom::Start(start))?;
         let read = reader.take(length as _).read_to_end(&mut buffer)?;
+        let read = read as u64;
 
         if read != length {
             return Err(eof_err!(
@@ -126,8 +127,9 @@ impl ChunkReader for Bytes {
         Ok(self.slice(start..).reader())
     }
 
-    fn get_bytes(&self, start: u64, length: usize) -> Result<Bytes> {
-        let start = start as usize;
+    fn get_bytes(&self, start: u64, length: u64) -> Result<Bytes> {
+        let start: usize = start.try_into()?;
+        let length: usize = length.try_into()?;
         Ok(self.slice(start..start + length))
     }
 }
