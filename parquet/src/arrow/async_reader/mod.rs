@@ -138,7 +138,7 @@ impl AsyncFileReader for Box<dyn AsyncFileReader + '_> {
 }
 
 impl<T: AsyncFileReader + MetadataFetch + AsyncRead + AsyncSeek + Unpin> MetadataSuffixFetch for T {
-    fn fetch_suffix(&mut self, suffix: usize) -> BoxFuture<'_, Result<Bytes>> {
+    fn fetch_suffix(&mut self, suffix: u64) -> BoxFuture<'_, Result<Bytes>> {
         async move {
             self.seek(SeekFrom::End(-(suffix as i64))).await?;
             let mut buf = Vec::with_capacity(suffix);
@@ -1058,6 +1058,7 @@ impl ChunkReader for ColumnChunkData {
     }
 
     fn get_bytes(&self, start: u64, length: usize) -> Result<Bytes> {
+        let length: usize = length.try_into()?;
         Ok(self.get(start)?.slice(..length))
     }
 }

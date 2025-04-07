@@ -76,6 +76,6 @@ pub fn decode_metadata(buf: &[u8]) -> Result<ParquetMetaData> {
     since = "53.1.0",
     note = "Use ParquetMetaDataReader::decode_footer_tail"
 )]
-pub fn decode_footer(slice: &[u8; FOOTER_SIZE]) -> Result<usize> {
+pub fn decode_footer(slice: &[u8; FOOTER_SIZE as usize]) -> Result<u64> {
     ParquetMetaDataReader::decode_footer_tail(slice).map(|f| f.metadata_length())
 }

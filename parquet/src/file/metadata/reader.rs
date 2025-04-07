@@ -72,10 +72,10 @@ pub struct ParquetMetaDataReader {
     metadata: Option<ParquetMetaData>,
     column_index: bool,
     offset_index: bool,
-    prefetch_hint: Option<usize>,
-    // Size of the serialized thrift metadata plus the 8 byte footer. Only set if
-    // `self.parse_metadata` is called.
-    metadata_size: Option<usize>,
+    prefetch_hint: Option<u64>,
+    /// Size of the serialized thrift metadata plus the 8 byte footer. Only set if
+    /// `self.parse_metadata` is called.
+    metadata_size: Option<u64>,
     #[cfg(feature = "encryption")]
     file_decryption_properties: Option<FileDecryptionProperties>,
 }
@@ -84,13 +84,13 @@ pub struct ParquetMetaDataReader {
 ///
 /// This is parsed from the last 8 bytes of the Parquet file
 pub struct FooterTail {
-    metadata_length: usize,
+    metadata_length: u64,
     encrypted_footer: bool,
 }
 
 impl FooterTail {
     /// The length of the footer metadata in bytes
-    pub fn metadata_length(&self) -> usize {
+    pub fn metadata_length(&self) -> u64 {
         self.metadata_length
     }
 
@@ -151,7 +151,7 @@ impl ParquetMetaDataReader {
     /// to fully decode the [`ParquetMetaData`], which can reduce the number of fetch requests and
     /// reduce latency. Setting `prefetch` too small will not trigger an error, but will result
     /// in extra fetches being performed.
-    pub fn with_prefetch_hint(mut self, prefetch: Option<usize>) -> Self {
+    pub fn with_prefetch_hint(mut self, prefetch: Option<u64>) -> Self {
         self.prefetch_hint = prefetch;
         self
     }
@@ -209,7 +209,7 @@ impl ParquetMetaDataReader {
     /// the request, and must include the Parquet footer. If page indexes are desired, the buffer
     /// must contain the entire file, or [`Self::try_parse_sized()`] should be used.
     pub fn try_parse<R: ChunkReader>(&mut self, reader: &R) -> Result<()> {
-        self.try_parse_sized(reader, reader.len() as usize)
+        self.try_parse_sized(reader, reader.len())
     }
 
     /// Same as [`Self::try_parse()`], but provide the original file size in the case that `reader`
@@ -284,13 +284,13 @@ impl ParquetMetaDataReader {
     /// }
     /// let metadata = reader.finish().unwrap();
     /// ```
-    pub fn try_parse_sized<R: ChunkReader>(&mut self, reader: &R, file_size: usize) -> Result<()> {
+    pub fn try_parse_sized<R: ChunkReader>(&mut self, reader: &R, file_size: u64) -> Result<()> {
         self.metadata = match self.parse_metadata(reader) {
             Ok(metadata) => Some(metadata),
             Err(ParquetError::NeedMoreData(needed)) => {
                 // If reader is the same length as `file_size` then presumably there is no more to
                 // read, so return an EOF error.
-                if file_size == reader.len() as usize || needed > file_size {
+                if file_size == reader.len() || needed > file_size {
                     return Err(eof_err!(
                         "Parquet file too small. Size is {} but need {}",
                         file_size,
@@ -315,7 +315,7 @@ impl ParquetMetaDataReader {
     /// Read the page index structures when a [`ParquetMetaData`] has already been obtained.
     /// See [`Self::new_with_metadata()`] and [`Self::has_metadata()`].
     pub fn read_page_indexes<R: ChunkReader>(&mut self, reader: &R) -> Result<()> {
-        self.read_page_indexes_sized(reader, reader.len() as usize)
+        self.read_page_indexes_sized(reader, reader.len())
     }
 
     /// Read the page index structures when a [`ParquetMetaData`] has already been obtained.
@@ -326,7 +326,7 @@ impl ParquetMetaDataReader {
     pub fn read_page_indexes_sized<R: ChunkReader>(
         &mut self,
         reader: &R,
-        file_size: usize,
+        file_size: u64,
     ) -> Result<()> {
         if self.metadata.is_none() {
             return Err(general_err!(
@@ -350,7 +350,7 @@ impl ParquetMetaDataReader {
 
         // Check to see if needed range is within `file_range`. Checking `range.end` seems
         // redundant, but it guards against `range_for_page_index()` returning garbage.
-        let file_range = file_size.saturating_sub(reader.len() as usize)..file_size;
+        let file_range = file_size.saturating_sub(reader.len())..file_size;
         if !(file_range.contains(&range.start) && file_range.contains(&range.end)) {
             // Requested range starts beyond EOF
             if range.end > file_size {
@@ -378,7 +378,7 @@ impl ParquetMetaDataReader {
         }
 
         let bytes_needed = range.end - range.start;
-        let bytes = reader.get_bytes((range.start - file_range.start) as u64, bytes_needed)?;
+        let bytes = reader.get_bytes(range.start - file_range.start, bytes_needed)?;
         let offset = range.start;
 
         self.parse_column_index(&bytes, offset)?;
@@ -397,7 +397,7 @@ impl ParquetMetaDataReader {
     pub async fn load_and_finish<F: MetadataFetch>(
         mut self,
         fetch: F,
-        file_size: usize,
+        file_size: u64,
     ) -> Result<ParquetMetaData> {
         self.try_load(fetch, file_size).await?;
         self.finish()
@@ -426,7 +426,7 @@ impl ParquetMetaDataReader {
     pub async fn try_load<F: MetadataFetch>(
         &mut self,
         mut fetch: F,
-        file_size: usize,
+        file_size: u64,
     ) -> Result<()> {
         let (metadata, remainder) = self.load_metadata(&mut fetch, file_size).await?;
 
@@ -473,7 +473,7 @@ impl ParquetMetaDataReader {
     async fn load_page_index_with_remainder<F: MetadataFetch>(
         &mut self,
         mut fetch: F,
-        remainder: Option<(usize, Bytes)>,
+        remainder: Option<(u64, Bytes)>,
     ) -> Result<()> {
         if self.metadata.is_none() {
             return Err(general_err!("Footer metadata is not present"));
@@ -507,7 +507,8 @@ impl ParquetMetaDataReader {
         Ok(())
     }
 
-    fn parse_column_index(&mut self, bytes: &Bytes, start_offset: usize) -> Result<()> {
+    fn parse_column_index(&mut self, bytes: &Bytes, start_offset: u64) -> Result<()> {
+        let start_offset: usize = start_offset.try_into()?;
         let metadata = self.metadata.as_mut().unwrap();
         if self.column_index {
             let index = metadata
@@ -531,7 +532,8 @@ impl ParquetMetaDataReader {
         Ok(())
     }
 
-    fn parse_offset_index(&mut self, bytes: &Bytes, start_offset: usize) -> Result<()> {
+    fn parse_offset_index(&mut self, bytes: &Bytes, start_offset: u64) -> Result<()> {
+        let start_offset: usize = start_offset.try_into()?;
         let metadata = self.metadata.as_mut().unwrap();
         if self.offset_index {
             let index = metadata
@@ -555,7 +557,7 @@ impl ParquetMetaDataReader {
         Ok(())
     }
 
-    fn range_for_page_index(&self) -> Option<Range<usize>> {
+    fn range_for_page_index(&self) -> Option<Range<u64>> {
         // sanity check
         self.metadata.as_ref()?;
 
@@ -592,7 +594,7 @@ impl ParquetMetaDataReader {
         let footer_metadata_len = FOOTER_SIZE + metadata_len;
         self.metadata_size = Some(footer_metadata_len);
 
-        if footer_metadata_len > file_size as usize {
+        if footer_metadata_len > file_size {
             return Err(ParquetError::NeedMoreData(footer_metadata_len));
         }
 
@@ -607,7 +609,7 @@ impl ParquetMetaDataReader {
     /// been provided, then return that value if it is larger than the size of the Parquet
     /// file footer (8 bytes). Otherwise returns `8`.
     #[cfg(all(feature = "async", feature = "arrow"))]
-    fn get_prefetch_size(&self) -> usize {
+    fn get_prefetch_size(&self) -> u64 {
         if let Some(prefetch) = self.prefetch_hint {
             if prefetch > FOOTER_SIZE {
                 return prefetch;
@@ -620,8 +622,8 @@ impl ParquetMetaDataReader {
     async fn load_metadata<F: MetadataFetch>(
         &self,
         fetch: &mut F,
-        file_size: usize,
-    ) -> Result<(ParquetMetaData, Option<(usize, Bytes)>)> {
+        file_size: u64,
+    ) -> Result<(ParquetMetaData, Option<(u64, Bytes)>)> {
         let prefetch = self.get_prefetch_size();
 
         if file_size < FOOTER_SIZE {
@@ -679,7 +681,7 @@ impl ParquetMetaDataReader {
     async fn load_metadata_via_suffix<F: MetadataSuffixFetch>(
         &self,
         fetch: &mut F,
-    ) -> Result<(ParquetMetaData, Option<(usize, Bytes)>)> {
+    ) -> Result<(ParquetMetaData, Option<(u64, Bytes)>)> {
         let prefetch = self.get_prefetch_size();
 
         let suffix = fetch.fetch_suffix(prefetch as _).await?;
@@ -747,18 +749,18 @@ impl ParquetMetaDataReader {
         } else {
             return Err(general_err!("Invalid Parquet file. Corrupt footer"));
         };
-        // get the metadata length from the footer
+        // get the metadata length from the footer (infallible)
         let metadata_len = u32::from_le_bytes(slice[..4].try_into().unwrap());
+        let metadata_length = metadata_len as u64;
         Ok(FooterTail {
-            // u32 won't be larger than usize in most cases
-            metadata_length: metadata_len as usize,
+            metadata_length,
             encrypted_footer,
         })
     }
 
     /// Decodes the Parquet footer, returning the metadata length in bytes
     #[deprecated(note = "use decode_footer_tail instead")]
-    pub fn decode_footer(slice: &[u8; FOOTER_SIZE]) -> Result<usize> {
+    pub fn decode_footer(slice: &[u8; FOOTER_SIZE]) -> Result<u64> {
         Self::decode_footer_tail(slice).map(|f| f.metadata_length)
     }
 
@@ -1091,7 +1093,7 @@ mod tests {
     #[test]
     fn test_try_parse() {
         let file = get_test_file("alltypes_tiny_pages.parquet");
-        let len = file.len() as usize;
+        let len = file.len();
 
         let mut reader = ParquetMetaDataReader::new().with_page_indexes(true);
 

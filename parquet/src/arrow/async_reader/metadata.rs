@@ -19,7 +19,7 @@ use crate::arrow::async_reader::AsyncFileReader;
 use crate::errors::{ParquetError, Result};
 use crate::file::metadata::{ParquetMetaData, ParquetMetaDataReader};
 use crate::file::page_index::index::Index;
-use crate::file::page_index::index_reader::{acc_range, decode_column_index, decode_offset_index};
+use crate::file::page_index::index_reader::{acc_range_usize, decode_column_index, decode_offset_index};
 use crate::file::FOOTER_SIZE;
 use bytes::Bytes;
 use futures::future::BoxFuture;
@@ -125,7 +125,7 @@ impl<F: MetadataFetch> MetadataLoader<F> {
         footer.copy_from_slice(&suffix[suffix_len - FOOTER_SIZE..suffix_len]);
 
         let footer = ParquetMetaDataReader::decode_footer_tail(&footer)?;
-        let length = footer.metadata_length();
+        let length = footer.metadata_length() as usize;
 
         if file_size < length + FOOTER_SIZE {
             return Err(ParquetError::EOF(format!(
@@ -181,8 +181,8 @@ impl<F: MetadataFetch> MetadataLoader<F> {
 
         let mut range = None;
         for c in self.metadata.row_groups().iter().flat_map(|r| r.columns()) {
-            range = acc_range(range, c.column_index_range());
-            range = acc_range(range, c.offset_index_range());
+            range = acc_range_usize(range, c.column_index_range());
+            range = acc_range_usize(range, c.offset_index_range());
         }
         let range = match range {
             None => return Ok(()),
@@ -294,6 +294,8 @@ where
     F: FnMut(Range<usize>) -> Fut + Send,
     Fut: Future<Output = Result<Bytes>> + Send,
 {
+    let prefetch = prefetch.map(|v| v as u64);
+    let file_size = file_size as u64;
     let fetch = MetadataFetchFn(fetch);
     ParquetMetaDataReader::new()
         .with_prefetch_hint(prefetch)

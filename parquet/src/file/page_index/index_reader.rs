@@ -31,7 +31,15 @@ use std::ops::Range;
 /// Computes the covering range of two optional ranges
 ///
 /// For example `acc_range(Some(7..9), Some(1..3)) = Some(1..9)`
-pub(crate) fn acc_range(a: Option<Range<usize>>, b: Option<Range<usize>>) -> Option<Range<usize>> {
+pub(crate) fn acc_range(a: Option<Range<u64>>, b: Option<Range<u64>>) -> Option<Range<u64>> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a.start.min(b.start)..a.end.max(b.end)),
+        (None, x) | (x, None) => x,
+    }
+}
+
+/// Computes the covering range of two optional ranges of `usize`
+pub(crate) fn acc_range_usize(a: Option<Range<usize>>, b: Option<Range<usize>>) -> Option<Range<usize>> {
     match (a, b) {
         (Some(a), Some(b)) => Some(a.start.min(b.start)..a.end.max(b.end)),
         (None, x) | (x, None) => x,
