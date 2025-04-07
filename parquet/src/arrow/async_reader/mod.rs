@@ -1057,7 +1057,7 @@ impl ChunkReader for ColumnChunkData {
         Ok(self.get(start)?.reader())
     }
 
-    fn get_bytes(&self, start: u64, length: usize) -> Result<Bytes> {
+    fn get_bytes(&self, start: u64, length: u64) -> Result<Bytes> {
         let length: usize = length.try_into()?;
         Ok(self.get(start)?.slice(..length))
     }

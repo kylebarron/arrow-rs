@@ -431,7 +431,7 @@ impl ChunkReader for ArrowColumnChunkData {
         ))
     }
 
-    fn get_bytes(&self, _start: u64, _length: u64`) -> Result<Bytes> {
+    fn get_bytes(&self, _start: u64, _length: u64) -> Result<Bytes> {
         unimplemented!()
     }
 }

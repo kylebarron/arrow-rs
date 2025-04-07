@@ -19,7 +19,7 @@ use crate::arrow::async_reader::AsyncFileReader;
 use crate::errors::{ParquetError, Result};
 use crate::file::metadata::{ParquetMetaData, ParquetMetaDataReader};
 use crate::file::page_index::index::Index;
-use crate::file::page_index::index_reader::{acc_range_usize, decode_column_index, decode_offset_index};
+use crate::file::page_index::index_reader::{acc_range, decode_column_index, decode_offset_index};
 use crate::file::FOOTER_SIZE;
 use bytes::Bytes;
 use futures::future::BoxFuture;
@@ -83,7 +83,7 @@ pub trait MetadataSuffixFetch: MetadataFetch {
     ///
     /// Note the returned type is a boxed future, often created by
     /// [FutureExt::boxed]. See the trait documentation for an example
-    fn fetch_suffix(&mut self, suffix: usize) -> BoxFuture<'_, Result<Bytes>>;
+    fn fetch_suffix(&mut self, suffix: u64) -> BoxFuture<'_, Result<Bytes>>;
 }
 
 /// An asynchronous interface to load [`ParquetMetaData`] from an async source
@@ -93,7 +93,7 @@ pub struct MetadataLoader<F> {
     /// The in-progress metadata
     metadata: ParquetMetaData,
     /// The offset and bytes of remaining unparsed data
-    remainder: Option<(usize, Bytes)>,
+    remainder: Option<(u64, Bytes)>,
 }
 
 impl<F: MetadataFetch> MetadataLoader<F> {
@@ -146,6 +146,7 @@ impl<F: MetadataFetch> MetadataLoader<F> {
             let metadata_start = file_size - length - FOOTER_SIZE - footer_start;
 
             let slice = &suffix[metadata_start..suffix_len - FOOTER_SIZE];
+            let footer_start: u64 = footer_start.try_into()?;
             (
                 ParquetMetaDataReader::decode_metadata(slice)?,
                 Some((footer_start, suffix.slice(..metadata_start))),
@@ -181,8 +182,8 @@ impl<F: MetadataFetch> MetadataLoader<F> {
 
         let mut range = None;
         for c in self.metadata.row_groups().iter().flat_map(|r| r.columns()) {
-            range = acc_range_usize(range, c.column_index_range());
-            range = acc_range_usize(range, c.offset_index_range());
+            range = acc_range(range, c.column_index_range());
+            range = acc_range(range, c.offset_index_range());
         }
         let range = match range {
             None => return Ok(()),

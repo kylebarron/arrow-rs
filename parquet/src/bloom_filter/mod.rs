@@ -186,7 +186,7 @@ impl std::ops::IndexMut<usize> for Block {
 #[derive(Debug, Clone)]
 pub struct Sbbf(Vec<Block>);
 
-pub(crate) const SBBF_HEADER_SIZE_ESTIMATE: usize = 20;
+pub(crate) const SBBF_HEADER_SIZE_ESTIMATE: u64 = 20;
 
 /// given an initial offset, and a byte buffer, try to read out a bloom filter header and return
 /// both the header and the offset after it (for bitset).
@@ -317,7 +317,10 @@ impl Sbbf {
         };
 
         let buffer = match column_metadata.bloom_filter_length() {
-            Some(length) => reader.get_bytes(offset, length as usize),
+            Some(length) => {
+                let length: u64 =  length.try_into()?;
+                reader.get_bytes(offset, length)
+            },
             None => reader.get_bytes(offset, SBBF_HEADER_SIZE_ESTIMATE),
         }?;
 
@@ -343,7 +346,7 @@ impl Sbbf {
         let bitset = match column_metadata.bloom_filter_length() {
             Some(_) => buffer.slice((bitset_offset - offset) as usize..),
             None => {
-                let bitset_length: usize = header.num_bytes.try_into().map_err(|_| {
+                let bitset_length: u64 = header.num_bytes.try_into().map_err(|_| {
                     ParquetError::General("Bloom filter length is invalid".to_string())
                 })?;
                 reader.get_bytes(bitset_offset, bitset_length)?
